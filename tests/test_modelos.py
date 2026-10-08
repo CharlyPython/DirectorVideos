@@ -24,3 +24,10 @@ def test_guion_busca_escena_y_roundtrip_json():
     assert Guion.model_validate_json(g.model_dump_json()) == g
     with pytest.raises(KeyError):
         g.escena("nope")
+
+
+def test_plan_duracion_limites_inclusivos():
+    assert Plan(idea="x", duracion_min=1).duracion_min == 1
+    assert Plan(idea="x", duracion_min=50).duracion_min == 50
+    with pytest.raises(ValidationError):
+        Plan(idea="x", duracion_min=0)

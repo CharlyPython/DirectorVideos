@@ -5,3 +5,4 @@ __pycache__/
 proyectos/
 token_youtube.json
 client_secret*.json
+*.egg-info/

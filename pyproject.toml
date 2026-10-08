@@ -16,5 +16,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 
-[tool.setuptools]
-packages = ["core"]
+[tool.setuptools.packages.find]
+include = ["core*","herramientas*","proveedores*","director*","agentes*","arquitecto*","app*"]
