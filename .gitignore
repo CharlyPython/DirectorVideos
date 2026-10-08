@@ -1,1 +1,7 @@
 .superpowers/
+.venv/
+__pycache__/
+.env
+proyectos/
+token_youtube.json
+client_secret*.json
