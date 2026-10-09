@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DirectorVideos</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
+  <style>
+    :root { --bg:#0f1115; --panel:#181b22; --texto:#e6e6e6; --tenue:#8a8f98; --acento:#e5484d; --ok:#30a46c; --aviso:#f5a524; }
+    * { box-sizing:border-box } body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--texto) }
+    header { padding:12px 24px; background:var(--panel); display:flex; gap:24px; align-items:center }
+    header a { color:var(--texto); text-decoration:none } main { padding:24px; max-width:1300px; margin:auto }
+    .tarjeta { background:var(--panel); border-radius:10px; padding:16px; margin-bottom:16px }
+    button, .boton { background:var(--acento); color:#fff; border:0; border-radius:6px; padding:8px 14px; cursor:pointer }
+    button.sec { background:#2a2f3a } input, textarea, select { width:100%; background:#0f1115; color:var(--texto);
+      border:1px solid #2a2f3a; border-radius:6px; padding:8px } textarea { min-height:70px }
+    .timeline { display:flex; gap:8px; flex-wrap:wrap } .paso { flex:1; min-width:140px; padding:10px; border-radius:8px; background:#11141a; text-align:center }
+    .hecho{border-bottom:3px solid var(--ok)} .trabajando{border-bottom:3px solid var(--aviso)} .error{border-bottom:3px solid var(--acento)} .esperando{border-bottom:3px solid #6e56cf}
+    .rejilla { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px }
+    .escena img, .escena video { width:100%; border-radius:6px; aspect-ratio:16/9; object-fit:cover; background:#000 }
+    .tenue { color:var(--tenue); font-size:13px } table { width:100%; border-collapse:collapse } td,th { padding:6px; text-align:left; border-bottom:1px solid #2a2f3a }
+  </style>
+</head>
+<body>
+  <header><strong>🎬 DirectorVideos</strong><a href="/">Panel</a><a href="/ajustes">Ajustes</a></header>
+  <main>{% block contenido %}{% endblock %}</main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="tarjeta">
+  <h2>Nueva idea</h2>
+  {% if modo == "simulado" %}<p class="tenue">Modo simulado: no se gasta dinero.</p>{% endif %}
+  <form method="post" action="/proyectos" style="display:grid;gap:10px;grid-template-columns:3fr 1fr 1fr 1fr auto;align-items:end">
+    <label>Idea<input name="idea" required minlength="3" placeholder="La caída del Imperio romano"></label>
+    <label>Minutos<input name="duracion_min" type="number" min="1" max="50" value="10"></label>
+    <label>Tono<input name="tono" value="documental"></label>
+    <label>Presupuesto $<input name="presupuesto_max" type="number" step="0.5" value="50"></label>
+    <button>Crear</button>
+  </form>
+</div>
+<div class="tarjeta">
+  <h2>Proyectos <span class="tenue">· gasto del mes {{ "%.2f"|format(coste_mes) }} $</span></h2>
+  <table><tr><th>Título / idea</th><th>Fase</th><th>Coste</th><th>Creado</th></tr>
+  {% for p in proyectos %}
+    <tr><td><a href="/proyectos/{{ p.id }}" style="color:inherit">{{ p.titulo or p.idea }}</a>{% if p.pausa %} ⏸{% endif %}</td>
+        <td>{{ p.fase }}</td><td>{{ "%.2f"|format(p.coste) }} $</td><td class="tenue">{{ p.creado[:16] }}</td></tr>
+  {% else %}<tr><td colspan="4" class="tenue">Aún no hay proyectos.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% set editable = p.fase in ("aprobacion_guion", "aprobacion_final") and not p.ocupado %}
+{% for cap in p.guion.capitulos %}
+<div class="tarjeta">
+  <h3>Capítulo {{ cap.numero }}: {{ cap.titulo }}
+    {% if p.fase == "aprobacion_guion" %}<button class="sec" hx-post="/api/proyectos/{{ p.id }}/capitulos/{{ cap.numero }}/regenerar"
+      hx-on::after-request="location.reload()">↻ Reescribir capítulo</button>{% endif %}</h3>
+  <div class="rejilla">
+  {% for e in p.guion.escenas if e.capitulo == cap.numero %}
+    <div class="escena">
+      <b>{{ e.id }}</b> <span class="tenue">img {{ e.estado.imagen }} · clip {{ e.estado.clip }} · audio {{ e.estado.audio }}</span>
+      {% if e.estado.clip == "generado" %}<video src="/media/{{ p.id }}/clips/{{ e.id }}.mp4" controls preload="none"
+        poster="/media/{{ p.id }}/imagenes/{{ e.id }}.png"></video>
+      {% elif e.estado.imagen == "generado" %}<img src="/media/{{ p.id }}/imagenes/{{ e.id }}.png" loading="lazy">{% endif %}
+      {% if e.error %}<p style="color:var(--acento)">{{ e.error }}</p>{% endif %}
+      {% if editable %}
+        <form hx-post="/api/proyectos/{{ p.id }}/escenas/{{ e.id }}" hx-ext="json-enc" hx-swap="none">
+          <textarea name="narracion">{{ e.narracion }}</textarea>
+          <input name="imagen_prompt" value="{{ e.imagen_prompt }}">
+          <input name="movimiento_prompt" value="{{ e.movimiento_prompt }}">
+          <button class="sec">Guardar</button>
+        </form>
+        {% for clave, txt in [("guion","↻ texto"),("imagen","↻ imagen"),("clip","↻ clip"),("audio","↻ voz")] %}
+          <button class="sec" hx-post="/api/proyectos/{{ p.id }}/escenas/{{ e.id }}/regenerar/{{ clave }}"
+            hx-on::after-request="location.reload()">{{ txt }}</button>
+        {% endfor %}
+      {% else %}<p>{{ e.narracion }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+</div>
+{% endfor %}

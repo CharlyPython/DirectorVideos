@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="tarjeta"><h2>Ajustes</h2>
+  <p>Modo: <b>{{ aj.modo }}</b> (cámbialo en <code>.env</code> → <code>DV_MODO</code> y reinicia)</p>
+  <h3>Claves</h3>{% for n, ok in claves.items() %}<div>{{ "✅" if ok else "⬜" }} {{ n }}</div>{% endfor %}
+  <p class="tenue">Las claves se editan en el archivo <code>.env</code>; la app nunca las muestra.</p>
+  <h3>Modelos</h3><div>Guion: {{ aj.modelo_guion }} · Supervisor: {{ aj.modelo_supervisor }}</div>
+  <div>Imagen: {{ aj.fal_imagen }}</div><div>Vídeo barato: {{ aj.fal_video_barato }} · premium: {{ aj.fal_video_premium }}</div>
+  <div>Voz: {{ aj.tts }}</div>
+  <h3>Precios usados para estimar</h3><pre class="tenue">{{ precios }}</pre>
+  <h3>YouTube</h3>
+  {% if youtube %}✅ Canal conectado{% else %}
+    <form method="post" action="/ajustes/youtube"><button>Conectar YouTube</button></form>
+    <p class="tenue">Se abrirá el navegador para que autorices tu canal. Necesitas <code>{{ aj.youtube_client_secret }}</code> (credenciales OAuth de escritorio de Google Cloud).</p>
+  {% endif %}
+</div>
+{% endblock %}

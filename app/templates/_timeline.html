@@ -1,0 +1,25 @@
+<div class="tarjeta">
+  <h2>{{ p.guion.titulo if p.guion else p.plan.idea }}</h2>
+  <div class="timeline">
+    <div class="paso hecho">🧠 Arquitecto<br><span class="tenue">{{ p.plan.duracion_min }} min · {{ p.plan.tono }}</span></div>
+    {% for clave, nombre, estado in p.agentes %}
+      <div class="paso {{ estado }}">{{ loop.index }}. {{ nombre }}<br>
+        <span class="tenue">{{ {"hecho":"✅ hecho","trabajando":"⚙️ trabajando","error":"❌ parado","esperando":"⏸ esperando","cola":"⏳ en cola"}[estado] }}
+        {% if p.costes.get(clave) %} · {{ "%.2f"|format(p.costes[clave]) }} ${% endif %}</span></div>
+    {% endfor %}
+  </div>
+  <p>Fase: <b>{{ p.fase }}</b> · Gastado: <b>{{ p.coste }} $</b> de {{ p.plan.presupuesto_max }} $
+    {% if p.ocupado %} · <span class="tenue">trabajando…</span>{% endif %}</p>
+  {% if p.pausa %}
+    <div style="border-left:3px solid var(--acento);padding-left:12px">
+      <p>⏸ <b>Pausado:</b> {{ p.pausa }}</p>
+      <form hx-post="/api/proyectos/{{ p.id }}/presupuesto" hx-ext="json-enc" style="display:flex;gap:8px;max-width:420px">
+        <input name="usd" type="number" step="0.5" value="{{ p.plan.presupuesto_max }}"><button class="sec">Cambiar tope</button>
+      </form><br>
+      <button hx-post="/api/proyectos/{{ p.id }}/reanudar">▶ Reanudar</button>
+    </div>
+  {% endif %}
+  <details><summary class="tenue">Registro</summary>
+    {% for l in p.logs %}<div class="tenue">{{ l.ts[11:19] }} · {{ l.agente }} · {{ l.mensaje }}</div>{% endfor %}
+  </details>
+</div>

@@ -1,0 +1,19 @@
+<div class="tarjeta">
+  <h2>⏸ Revisión final</h2>
+  <video src="/media/{{ p.id }}/final.mp4" controls style="width:100%;max-width:960px;border-radius:8px"></video>
+  {% if p.montaje.avisos %}<p style="color:var(--aviso)">Avisos: {{ p.montaje.avisos|join(" · ") }}</p>{% endif %}
+  <form hx-post="/api/proyectos/{{ p.id }}/aprobar-final" hx-ext="json-enc" hx-on::after-request="location.reload()">
+    <h3>Título</h3>
+    {% for t in p.publicacion.titulos %}<label style="display:block"><input type="radio" name="titulo" value="{{ t }}" style="width:auto" {% if loop.first %}checked{% endif %}> {{ t }}</label>{% endfor %}
+    <h3>Miniatura</h3>
+    <div class="rejilla">{% for m in p.publicacion.miniaturas %}
+      <label><input type="radio" name="miniatura" value="{{ m }}" style="width:auto" {% if loop.first %}checked{% endif %}>
+        <img src="/media/{{ p.id }}/{{ m }}" style="width:100%;border-radius:6px"></label>{% endfor %}</div>
+    <h3>Descripción</h3><pre style="white-space:pre-wrap" class="tenue">{{ p.publicacion.descripcion }}</pre>
+    <div style="display:flex;gap:12px;max-width:600px">
+      <label>Privacidad<select name="privacidad"><option value="private">Privado</option><option value="unlisted">Oculto</option><option value="public">Público</option></select></label>
+      <label>Programar (opcional, ISO 8601 UTC)<input name="publicar_en" placeholder="2026-10-20T16:00:00Z"></label>
+    </div><br>
+    <button>🚀 Aprobar y publicar en YouTube</button>
+  </form>
+</div>

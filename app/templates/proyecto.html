@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div hx-ext="sse" sse-connect="/api/proyectos/{{ p.id }}/eventos">
+  <div id="vivo" hx-get="/proyectos/{{ p.id }}/parcial" hx-trigger="sse:message throttle:2s" hx-swap="innerHTML">
+    {% include "_timeline.html" %}
+  </div>
+</div>
+{% if p.fase == "aprobacion_guion" %}
+  <div class="tarjeta">
+    <h2>⏸ Revisión del guion: {{ p.guion.titulo }}</h2>
+    <p><b>Gancho:</b> {{ p.guion.gancho }}</p>
+    <p class="tenue"><b>Biblia visual:</b> {{ p.guion.biblia_visual }} · <b>Ángulo:</b> {{ p.plan.angulo }} ·
+      <b>Modelo de vídeo:</b> {{ p.plan.modelo_video }}</p>
+    <p><b>Coste estimado:</b> {{ p.estimacion.total }} $ (clips {{ p.estimacion.clips }} $, imágenes {{ p.estimacion.imagenes }} $)
+      · tope {{ p.plan.presupuesto_max }} $</p>
+    <button hx-post="/api/proyectos/{{ p.id }}/aprobar-guion" hx-on::after-request="location.reload()">✅ Aprobar guion</button>
+  </div>
+{% endif %}
+{% if p.fase == "aprobacion_final" %}{% include "_revision.html" %}{% endif %}
+{% if p.guion %}{% include "_escenas.html" %}{% endif %}
+{% endblock %}
