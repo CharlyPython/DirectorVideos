@@ -76,6 +76,8 @@ class Director:
         if fase == Fase.IMAGENES:
             return await self._produccion(ctx, self.ilustrador, a.revisar_imagenes, Fase.CLIPS)
         if fase == Fase.CLIPS:
+            if hasattr(self.proveedores.video, "modelo"):
+                self.proveedores.video.modelo = ctx.plan.modelo_video
             return await self._produccion(ctx, self.animador, a.revisar_clips, Fase.AUDIO)
         if fase == Fase.AUDIO:
             return await self._produccion(ctx, self.narrador, None, Fase.MONTAJE)
