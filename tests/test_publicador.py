@@ -1,5 +1,4 @@
 # tests/test_publicador.py
-import pytest
 from PIL import Image
 from agentes.publicador import Publicador, marcas_capitulos
 from tests.test_montador import _producido
@@ -26,3 +25,28 @@ async def test_preparar_y_subir(raiz):
     sub = ctx.proveedores.subidor.subidas[0]
     assert r.ok and sub["meta"]["titulo"] == d["titulos"][1]
     assert ctx.almacen.cargar_json(ctx.pid, "publicacion.json")["video_id"] == "SIMULADO123"
+
+
+async def test_no_sube_dos_veces(raiz):
+    ctx = await _producido(raiz)
+    await Montador().ejecutar(ctx)
+    pub = Publicador()
+    await pub.preparar(ctx)
+    d = ctx.almacen.cargar_json(ctx.pid, "publicacion.json")
+    d["titulo_elegido"], d["miniatura_elegida"] = d["titulos"][0], d["miniaturas"][0]
+    ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
+    assert (await pub.subir(ctx)).ok
+    r = await pub.subir(ctx)
+    assert r.ok and len(ctx.proveedores.subidor.subidas) == 1
+
+
+async def test_miniatura_fuera_de_lista_no_sube(raiz):
+    ctx = await _producido(raiz)
+    await Montador().ejecutar(ctx)
+    pub = Publicador()
+    await pub.preparar(ctx)
+    d = ctx.almacen.cargar_json(ctx.pid, "publicacion.json")
+    d["titulo_elegido"], d["miniatura_elegida"] = d["titulos"][0], "no_existe.png"
+    ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
+    r = await pub.subir(ctx)
+    assert not r.ok and r.errores and not ctx.proveedores.subidor.subidas

@@ -75,7 +75,21 @@ class Publicador:
         d = ctx.almacen.cargar_json(ctx.pid, "publicacion.json")
         if not d or not d.get("titulo_elegido") or not d.get("miniatura_elegida"):
             return Resultado(ok=False, errores=["elige título y miniatura antes de publicar"])
+        if d.get("video_id"):
+            ctx.emitir(self.nombre, f"ya estaba publicado: {d['video_id']}")
+            return Resultado(ok=True)
         base = ctx.almacen.ruta(ctx.pid)
+        errores = []
+        if d["titulo_elegido"] not in d["titulos"]:
+            errores.append("el título elegido no está en la lista de títulos")
+        if d["miniatura_elegida"] not in d["miniaturas"]:
+            errores.append("la miniatura elegida no está en la lista de miniaturas")
+        if not (base / "final.mp4").exists():
+            errores.append("falta final.mp4: monta el vídeo antes de publicar")
+        if not (base / d["miniatura_elegida"]).exists():
+            errores.append(f"no existe el archivo de miniatura {d['miniatura_elegida']}")
+        if errores:
+            return Resultado(ok=False, errores=errores)
         meta = {"titulo": d["titulo_elegido"], "descripcion": d["descripcion"], "etiquetas": d["etiquetas"],
                 "privacidad": d["privacidad"], "publicar_en": d["publicar_en"]}
         video_id = await con_reintentos(lambda: ctx.proveedores.subidor.subir(
