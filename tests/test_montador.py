@@ -65,3 +65,22 @@ async def test_musica_y_subtitulos_incrustados(raiz):
     ctx.almacen.guardar_plan(ctx.pid, plan)
     r = await Montador().ejecutar(ctx)
     assert r.ok and abs(await duracion(ctx.almacen.ruta(ctx.pid) / "final.mp4") - 60) < 1.5
+
+
+async def test_solo_musica(raiz):
+    from herramientas.ffmpeg import ejecutar
+    ctx = await _producido(raiz)
+    musica = raiz / "música.mp3"
+    await ejecutar(["-f", "lavfi", "-i", "sine=frequency=440", "-t", "5", str(musica)])
+    plan = ctx.plan; plan.musica = str(musica); plan.subtitulos_incrustados = False
+    ctx.almacen.guardar_plan(ctx.pid, plan)
+    r = await Montador().ejecutar(ctx)
+    assert r.ok and abs(await duracion(ctx.almacen.ruta(ctx.pid) / "final.mp4") - 60) < 1.5
+
+
+async def test_raiz_relativa(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ctx = await _producido(Path("proy rel"))
+    ctx.plan.subtitulos_incrustados = True
+    r = await Montador().ejecutar(ctx)
+    assert r.ok and (ctx.almacen.ruta(ctx.pid) / "final.mp4").exists()

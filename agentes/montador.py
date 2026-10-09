@@ -31,7 +31,10 @@ def generar_srt(escenas: list[Escena]) -> str:
     bloques, t, n = [], 0.0, 1
     for e in escenas:
         palabras = e.narracion.split()
-        trozos = [palabras[i:i + PALABRAS_POR_SUBTITULO] for i in range(0, len(palabras), PALABRAS_POR_SUBTITULO)] or [[]]
+        trozos = [palabras[i:i + PALABRAS_POR_SUBTITULO] for i in range(0, len(palabras), PALABRAS_POR_SUBTITULO)]
+        if not trozos:
+            t += e.duracion_audio
+            continue
         paso = e.duracion_audio / len(trozos)
         for i, trozo in enumerate(trozos):
             ini, fin = t + i * paso, t + (i + 1) * paso
@@ -56,13 +59,17 @@ class Montador:
         if faltan:
             return Resultado(ok=False, errores=[f"faltan clip/audio en: {', '.join(faltan[:10])}"])
 
+        for e in guion.escenas:
+            if not e.duracion_audio:
+                e.duracion_audio = await duracion(ctx.almacen.archivo(ctx.pid, "audio", e.id))
+
         segs = base / "segmentos"
         segs.mkdir(exist_ok=True)
         avisos, lineas = [], []
         for i, e in enumerate(guion.escenas, 1):
             clip = ctx.almacen.archivo(ctx.pid, "clip", e.id)
             audio = ctx.almacen.archivo(ctx.pid, "audio", e.id)
-            a = e.duracion_audio or await duracion(audio)
+            a = e.duracion_audio
             v, aviso = velocidad(SEGUNDOS_CLIP, a)
             if aviso:
                 avisos.append(f"{e.id}: {aviso}")
@@ -79,13 +86,14 @@ class Montador:
 
         lista = base / "lista.txt"
         lista.write_text("\n".join(lineas), encoding="utf-8")
-        unido = base / "unido.mp4"
-        await ejecutar(["-f", "concat", "-safe", "0", "-i", str(lista), "-c", "copy", str(unido)])
+        unido = (base / "unido.mp4").resolve()
+        await ejecutar(["-f", "concat", "-safe", "0", "-i", str(lista.resolve()), "-c", "copy", str(unido)])
+        lista.unlink(missing_ok=True)
 
         srt = base / "subtitulos.srt"
         srt.write_text(generar_srt(guion.escenas), encoding="utf-8")
         final = base / "final.mp4"
-        await self._mezcla_final(unido, final, plan.musica, srt if plan.subtitulos_incrustados else None, base)
+        await self._mezcla_final(unido, final.resolve(), plan.musica, srt if plan.subtitulos_incrustados else None, base)
 
         inicios, t = {}, 0.0
         for e in guion.escenas:
@@ -104,14 +112,14 @@ class Montador:
         if not musica and not srt:
             unido.replace(final)
             return
-        args = ["-i", str(unido)]
+        args = ["-i", str(unido.resolve())]
         vfiltro = "[0:v]copy[v]"
         if srt:
             vfiltro = f"[0:v]subtitles={srt.name}[v]"   # cwd=base evita escapar rutas de Windows
         if musica:
             args += ["-stream_loop", "-1", "-i", str(Path(musica).resolve())]
             afiltro = ("[1:a]volume=0.25[m];[m][0:a]sidechaincompress=threshold=0.05:ratio=8[d];"
-                       "[0:a][d]amix=inputs=2:duration=first[a]")
+                       "[0:a][d]amix=inputs=2:duration=first:normalize=0[a]")
         else:
             afiltro = "[0:a]anull[a]"
         vcodec = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"] if srt else ["-c:v", "copy"]
