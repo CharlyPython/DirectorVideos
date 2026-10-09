@@ -76,3 +76,53 @@ async def test_errores_de_escena_pausan(raiz):
     await d.avanzar(pid); d.aprobar_guion(pid)
     assert await d.avanzar(pid) == Fase.IMAGENES
     assert "c01_s001" in d.almacen.pausa(pid)
+
+
+async def test_regenerar_completado_rechazado_y_sube_una_vez(raiz):
+    d = _director(raiz)
+    pid = await d.crear("Roma", 1, "documental", 50)
+    await d.avanzar(pid); d.aprobar_guion(pid); await d.avanzar(pid)
+    pub = d.almacen.cargar_json(pid, "publicacion.json")
+    d.aprobar_final(pid, pub["titulos"][0], pub["miniaturas"][0])
+    assert await d.avanzar(pid) == Fase.COMPLETADO
+    with pytest.raises(ValueError):
+        await d.regenerar(pid, "c01_s001", "imagen")
+    with pytest.raises(ValueError):
+        await d.regenerar_capitulo(pid, 1)
+    assert d.almacen.fase(pid) == Fase.COMPLETADO and len(d.proveedores.subidor.subidas) == 1
+
+
+async def test_regenerar_imagen_antes_de_aprobar_guion(raiz):
+    d = _director(raiz)
+    pid = await d.crear("Roma", 1, "documental", 50)
+    await d.avanzar(pid)
+    for clave in ("imagen", "clip", "audio", "otra"):
+        with pytest.raises(ValueError):
+            await d.regenerar(pid, "c01_s001", clave)
+    with pytest.raises(ValueError):
+        await d.regenerar(pid, "nope", "guion")
+
+
+async def test_ocupado_durante_regenerar(raiz):
+    import asyncio
+    prov = proveedores_simulados()
+    interno, entrada, suelta = prov.imagen, asyncio.Event(), asyncio.Event()
+    class Lenta:
+        def __init__(self): self.activa = False
+        async def generar(self, prompt, destino):
+            if self.activa:
+                entrada.set(); await suelta.wait()
+            return await interno.generar(prompt, destino)
+    prov.imagen = lenta = Lenta()
+    d = _director(raiz, prov)
+    pid = await d.crear("Roma", 1, "documental", 50)
+    await d.avanzar(pid); d.aprobar_guion(pid); await d.avanzar(pid)
+    lenta.activa = True
+    t = asyncio.create_task(d.regenerar(pid, "c01_s001", "imagen"))
+    await entrada.wait()
+    assert d.ocupado(pid)
+    with pytest.raises(ValueError):
+        await d.regenerar(pid, "c01_s002", "imagen")
+    d.lanzar(pid)                      # ignorado: sigue ocupado
+    suelta.set(); await t
+    assert not d.ocupado(pid)

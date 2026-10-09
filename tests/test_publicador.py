@@ -50,3 +50,15 @@ async def test_miniatura_fuera_de_lista_no_sube(raiz):
     ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
     r = await pub.subir(ctx)
     assert not r.ok and r.errores and not ctx.proveedores.subidor.subidas
+
+
+async def test_preparar_conserva_video_id(raiz):
+    ctx = await _producido(raiz)
+    await Montador().ejecutar(ctx)
+    pub = Publicador()
+    await pub.preparar(ctx)
+    d = ctx.almacen.cargar_json(ctx.pid, "publicacion.json")
+    d["video_id"] = "ABC"
+    ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
+    await pub.preparar(ctx)
+    assert ctx.almacen.cargar_json(ctx.pid, "publicacion.json")["video_id"] == "ABC"

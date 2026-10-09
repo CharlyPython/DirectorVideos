@@ -145,15 +145,26 @@ class Director:
         self.almacen.guardar_plan(pid, plan)
 
     async def regenerar(self, pid: str, escena_id: str, clave: str) -> None:
+        if clave not in DEPENDIENTES:
+            raise ValueError(f"clave desconocida: {clave}")
         if self.ocupado(pid):
             raise ValueError("el proyecto está trabajando; espera a que termine")
-        ctx = self._ctx(pid)
+        fase = self.almacen.fase(pid)
+        if fase in (Fase.PUBLICACION, Fase.COMPLETADO):
+            raise ValueError("el vídeo ya está publicado o publicándose; no se puede regenerar")
+        if fase in (Fase.GUION, Fase.APROBACION_GUION) and clave != "guion":
+            raise ValueError("aprueba el guion antes de regenerar imágenes, clips o audio")
         g = self.almacen.cargar_guion(pid)
-        e = g.escena(escena_id)
-        for k in DEPENDIENTES[clave]:
-            e.estado[k] = Estado.PENDIENTE
-        self.almacen.guardar_guion(pid, g)
         try:
+            e = g.escena(escena_id)
+        except KeyError:
+            raise ValueError(f"escena desconocida: {escena_id}") from None
+        self._tareas[pid] = asyncio.current_task()
+        ctx = self._ctx(pid)
+        try:
+            for k in DEPENDIENTES[clave]:
+                e.estado[k] = Estado.PENDIENTE
+            self.almacen.guardar_guion(pid, g)
             if clave == "guion":
                 await self.guionista.regenerar_escena(ctx, escena_id, "petición del usuario")
             else:
@@ -161,11 +172,19 @@ class Director:
                 await agente.ejecutar(ctx, solo=[escena_id])
         except PresupuestoAgotado as ex:
             self.almacen.pausar(pid, str(ex))
-        fase, destino = self.almacen.fase(pid), FASE_TRAS_REGENERAR[clave]
-        orden = list(Fase)
-        if orden.index(fase) > orden.index(destino):
-            self._fase(ctx, destino)
+            ctx.emitir("arquitecto", f"⏸ {ex}. Sube el presupuesto y pulsa Reanudar.")
+        finally:
+            self._tareas.pop(pid, None)
+            destino, orden = FASE_TRAS_REGENERAR[clave], list(Fase)
+            if orden.index(self.almacen.fase(pid)) > orden.index(destino):
+                self._fase(ctx, destino)
 
     async def regenerar_capitulo(self, pid: str, numero: int) -> None:
         self._exigir(pid, Fase.APROBACION_GUION)
-        await self.guionista.regenerar_capitulo(self._ctx(pid), numero)
+        if self.ocupado(pid):
+            raise ValueError("el proyecto está trabajando; espera a que termine")
+        self._tareas[pid] = asyncio.current_task()
+        try:
+            await self.guionista.regenerar_capitulo(self._ctx(pid), numero)
+        finally:
+            self._tareas.pop(pid, None)

@@ -63,10 +63,11 @@ class Publicador:
             _rotular(ruta, meta["texto_miniatura"])
             miniaturas.append(ruta.name)
         descripcion = f"{meta['descripcion']}\n\nCapítulos:\n{marcas_capitulos(montaje['capitulos'])}"
+        previo = ctx.almacen.cargar_json(ctx.pid, "publicacion.json") or {}
         ctx.almacen.guardar_json(ctx.pid, "publicacion.json", {
             "titulos": meta["titulos"], "descripcion": descripcion, "etiquetas": meta["etiquetas"],
             "miniaturas": miniaturas, "titulo_elegido": None, "miniatura_elegida": None,
-            "privacidad": "private", "publicar_en": None, "video_id": None})
+            "privacidad": "private", "publicar_en": None, "video_id": previo.get("video_id")})
         ctx.cobrar(self.nombre, "metadatos+miniaturas", coste)
         ctx.emitir(self.nombre, "metadatos y miniaturas listos")
         return Resultado(ok=True, coste=coste)
