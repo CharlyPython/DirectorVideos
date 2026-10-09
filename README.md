@@ -47,6 +47,7 @@ Modelos de Claude por defecto: `DV_MODELO_GUION=claude-sonnet-5-5` (guion) y `DV
 2. Crea una credencial **ID de cliente OAuth** de tipo **App de escritorio**.
 3. Descarga el JSON como `client_secret.json` en la carpeta del proyecto (o apunta `DV_YOUTUBE_CLIENT_SECRET` a otra ruta).
 4. Arranca la app, ve a **Ajustes → Conectar YouTube** y autoriza. El token queda en `token_youtube.json`.
+5. Si la pantalla de consentimiento está en modo *Testing*, añade tu cuenta como usuario de prueba. En ese modo el refresh token puede caducar en ~7 días: reconecta en Ajustes.
 
 `.env`, `client_secret*.json`, `token_youtube.json` y `proyectos/` están en `.gitignore`. No subas claves al repositorio.
 
@@ -60,12 +61,12 @@ Abre http://127.0.0.1:8000.
 
 ## Flujo
 
-1. Creas un proyecto (idea, duración, plan de vídeo, presupuesto, privacidad).
+1. Creas un proyecto con idea, duración (1-50 min), tono y presupuesto máximo.
 2. El Guionista genera el guion y el desglose en escenas.
 3. **⏸1 Aprobación del guion**: revisas y editas escenas, regeneras capítulos y apruebas.
-4. Se generan **5 imágenes por minuto** y un **clip IA de 10 s** por escena (barato o premium según el plan), además de la narración y el montaje con subtítulos.
-5. **⏸2 Aprobación del vídeo final**: ves el resultado, puedes regenerar escenas y apruebas.
-6. El Publicador genera metadatos y 3 miniaturas y sube el vídeo a YouTube con la privacidad elegida.
+4. Se generan **5 imágenes por minuto** y un **clip IA de 10 s** por escena (barato o premium según el plan), la narración y el montaje con subtítulos. Durante el montaje el Publicador genera los metadatos y las 3 miniaturas.
+5. **⏸2 Aprobación del vídeo final**: ves el vídeo, los metadatos y las miniaturas; eliges título, miniatura y **privacidad** (y fecha de publicación opcional) y apruebas.
+6. Tras aprobar, el Publicador sube el vídeo a YouTube.
 
 **Presupuesto:** si el gasto alcanza el tope, el proyecto se **pausa**. Sube el presupuesto en el panel del proyecto y pulsa **Reanudar**.
 
@@ -73,7 +74,7 @@ Abre http://127.0.0.1:8000.
 
 Todo queda en `proyectos/<id>/`:
 
-- `guion.json`
+- `plan.json`, `guion.json`, `montaje.json`, `publicacion.json`
 - `imagenes/`, `clips/`, `audio/`
 - `final.mp4` y `subtitulos.srt`
 - `miniatura_*.png`
@@ -81,9 +82,9 @@ Todo queda en `proyectos/<id>/`:
 
 ## Costes
 
-Los precios de `core/costes.py` (y los de `proveedores/fabrica.py`) son **orientativos**; verifícalos con cada proveedor. Ejemplos: ~0,025 $ por imagen, ~0,30 $ (barato) a ~1,00 $ (premium) por clip de 10 s, ~0,30 $/min de voz, ~0,20 $ de publicación. Los clips dominan el coste.
+Los precios de `core/costes.py` (y los de `proveedores/fabrica.py`) son **orientativos**; verifícalos con cada proveedor. Ejemplos: ~0,025 $ por imagen, ~0,30 $ (barato) a ~1,00 $ (premium) por clip de 10 s, ~0,30 $/min de voz, ~0,20 $ de publicación. Los clips dominan el coste. Los precios de fal/TTS usados para el seguimiento del coste real están en `proveedores/fabrica.py`; las estimaciones usan `core/costes.py`.
 
-**Primera prueba real recomendada:** proyecto de **1 minuto**, presupuesto **~8 $**, privacidad **Privado**. Compara el coste real del panel con la estimación y ajusta `PRECIOS` si hay desviaciones.
+**Primera prueba real recomendada:** proyecto de **1 minuto**, presupuesto **~8 $** y privacidad **Privado** (se elige en ⏸2). Compara el coste real del panel con la estimación y ajusta `PRECIOS` si hay desviaciones.
 
 ## Tests
 
@@ -97,8 +98,10 @@ Tardan varios minutos: usan proveedores simulados pero FFmpeg real.
 
 La interfaz web usa una API JSON bajo `/api`, pensada para integrar un agente externo (Hermes) más adelante:
 
-- `GET /api/proyectos`, `POST /api/proyectos`, `GET /api/proyectos/{pid}`
-- `POST /api/proyectos/{pid}/aprobar-guion` y `/aprobar-final`
+- `POST /api/proyectos` con `{"idea": str, "duracion_min": 1-50, "tono": "documental", "presupuesto_max": 50.0}` (devuelve `{"id"}`)
+- `GET /api/proyectos`, `GET /api/proyectos/{pid}`
+- `POST /api/proyectos/{pid}/aprobar-guion`
+- `POST /api/proyectos/{pid}/aprobar-final` con `{"titulo", "miniatura", "privacidad": "private|unlisted|public", "publicar_en": null}`
 - `POST /api/proyectos/{pid}/reanudar` y `/presupuesto`
 - `POST /api/proyectos/{pid}/escenas/{eid}` y `/escenas/{eid}/regenerar/{clave}`
 - `POST /api/proyectos/{pid}/capitulos/{numero}/regenerar`
