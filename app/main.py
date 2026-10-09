@@ -1,3 +1,7 @@
+import json
+import logging
+
+from pydantic import ValidationError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -18,10 +22,15 @@ def crear_app(ajustes: Ajustes | None = None, proveedores: Proveedores | None = 
 
     @app.exception_handler(ValueError)
     async def _conflicto(_: Request, e: ValueError):
+        if isinstance(e, (ValidationError, json.JSONDecodeError)):
+            logging.exception("error interno")
+            return JSONResponse({"detail": "error interno"}, status_code=500)
+        logging.exception("conflicto")
         return JSONResponse({"detail": str(e)}, status_code=409)
 
     @app.exception_handler(KeyError)
     async def _no_existe(_: Request, e: KeyError):
+        logging.exception("no existe")
         return JSONResponse({"detail": f"no existe: {e}"}, status_code=404)
 
     from app.api import router as api

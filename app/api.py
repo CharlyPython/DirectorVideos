@@ -1,6 +1,6 @@
 import asyncio
 import json
-from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -22,8 +22,12 @@ class NuevoProyecto(BaseModel):
 class Aprobacion(BaseModel):
     titulo: str
     miniatura: str
-    privacidad: str = "private"
+    privacidad: Literal["private", "unlisted", "public"] = "private"
     publicar_en: str | None = None
+
+
+class Presupuesto(BaseModel):
+    usd: float = Field(gt=0, allow_inf_nan=False)
 
 
 class EdicionEscena(BaseModel):
@@ -85,8 +89,10 @@ async def reanudar(req: Request, pid: str):
 
 
 @router.post("/api/proyectos/{pid}/presupuesto")
-async def presupuesto(req: Request, pid: str, datos: dict):
-    _d(req).cambiar_presupuesto(pid, float(datos["usd"]))
+async def presupuesto(req: Request, pid: str, datos: Presupuesto):
+    d = _d(req)
+    d.almacen.fase(pid)
+    d.cambiar_presupuesto(pid, datos.usd)
     return {"ok": True}
 
 
@@ -97,6 +103,8 @@ async def editar_escena(req: Request, pid: str, eid: str, datos: EdicionEscena):
         raise ValueError("solo se puede editar en los puntos de aprobación")
     g = d.almacen.cargar_guion(pid)
     e = g.escena(eid)
+    if not datos.model_fields_set & {"narracion", "imagen_prompt", "movimiento_prompt"}:
+        return e.model_dump()
     if datos.narracion is not None:
         e.narracion, e.estado["audio"] = datos.narracion, Estado.PENDIENTE
     if datos.imagen_prompt is not None:
@@ -136,7 +144,9 @@ async def regenerar_capitulo(req: Request, pid: str, numero: int):
 
 @router.get("/api/proyectos/{pid}/eventos")
 async def eventos(req: Request, pid: str):
-    bus = _d(req).bus
+    d = _d(req)
+    d.almacen.fase(pid)
+    bus = d.bus
     cola = bus.suscribir(pid)
 
     async def flujo():
@@ -154,8 +164,15 @@ async def eventos(req: Request, pid: str):
 
 @router.get("/media/{pid}/{ruta:path}")
 async def media(req: Request, pid: str, ruta: str):
-    base = _d(req).almacen.ruta(pid).resolve()
-    destino = (base / ruta).resolve()
-    if base not in destino.parents or not destino.is_file():
+    a = _d(req).almacen
+    try:
+        a.fase(pid)
+        base = a.ruta(pid).resolve()
+        if base.parent != a.raiz.resolve():
+            raise HTTPException(404)
+        destino = (base / ruta).resolve()
+        if base not in destino.parents or not destino.is_file():
+            raise HTTPException(404)
+    except (OSError, ValueError, KeyError):
         raise HTTPException(404)
     return FileResponse(destino)

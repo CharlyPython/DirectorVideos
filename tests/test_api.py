@@ -33,7 +33,7 @@ async def test_flujo_por_api(cliente):
     d = await _esperar(cliente, pid, "aprobacion_final")
     m = await cliente.get(f"/media/{pid}/final.mp4")
     assert m.status_code == 200
-    assert (await cliente.get(f"/media/{pid}/../director.db")).status_code in (400, 404)
+    assert (await cliente.get(f"/media/{pid}/../director.db")).status_code == 404
     pub = d["publicacion"]
     await cliente.post(f"/api/proyectos/{pid}/aprobar-final",
                        json={"titulo": pub["titulos"][0], "miniatura": pub["miniaturas"][0]})
@@ -47,5 +47,31 @@ async def test_media_bloquea_traversal(cliente):
     r = await cliente.post("/api/proyectos", json={"idea": "Roma", "duracion_min": 1})
     pid = r.json()["id"]
     await _esperar(cliente, pid, "aprobacion_guion")
-    assert (await cliente.get(f"/media/{pid}/%2e%2e/director.db")).status_code in (400, 404)
+    assert (await cliente.get(f"/media/{pid}/%2e%2e/director.db")).status_code == 404
     assert (await cliente.get(f"/media/{pid}/")).status_code == 404
+
+
+async def test_media_pid_invalido_y_raw(cliente):
+    for ruta in ("/media/./director.db", "/media/%2e/director.db", "/media/%2e%2e/x", "/media/../director.db"):
+        assert (await cliente.get(ruta)).status_code == 404
+    escala = {"type": "http", "method": "GET", "path": "/media/./director.db", "raw_path": b"/media/./director.db",
+              "query_string": b"", "headers": [], "http_version": "1.1", "scheme": "http",
+              "server": ("t", 80), "client": ("c", 1)}
+    msgs = []
+
+    async def recibir():
+        return {"type": "http.request", "body": b""}
+
+    async def enviar(m):
+        msgs.append(m)
+    await cliente.app(escala, recibir, enviar)
+    assert msgs[0]["status"] == 404
+
+
+async def test_presupuesto_y_sse_404(cliente):
+    assert (await cliente.post("/api/proyectos/nope/presupuesto", json={"usd": 5})).status_code == 404
+    assert (await cliente.get("/api/proyectos/nope/eventos")).status_code == 404
+    r = await cliente.post("/api/proyectos", json={"idea": "Roma", "duracion_min": 1})
+    pid = r.json()["id"]
+    assert (await cliente.post(f"/api/proyectos/{pid}/presupuesto", json={"usd": -1})).status_code == 422
+    assert (await cliente.post(f"/api/proyectos/{pid}/presupuesto", json={})).status_code == 422
