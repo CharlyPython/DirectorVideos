@@ -2,6 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 
+from google.auth.exceptions import RefreshError, TransportError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -9,7 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-from herramientas.reintentos import ErrorPermanente
+from herramientas.reintentos import ErrorPermanente, ErrorTransitorio
 
 ALCANCES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.force-ssl"]
 log = logging.getLogger(__name__)
@@ -36,10 +37,15 @@ class SubidorYouTube:
     def _servicio(self):
         if not self.token.exists():
             raise ErrorPermanente("YouTube no conectado: ve a Ajustes → Conectar YouTube")
-        cred = Credentials.from_authorized_user_file(str(self.token), ALCANCES)
-        if cred.expired and cred.refresh_token:
-            cred.refresh(Request())
-            self.token.write_text(cred.to_json(), encoding="utf-8")
+        try:
+            cred = Credentials.from_authorized_user_file(str(self.token), ALCANCES)
+            if cred.expired and cred.refresh_token:
+                cred.refresh(Request())
+                self.token.write_text(cred.to_json(), encoding="utf-8")
+        except TransportError as e:  # nada subido todavía: reintento seguro
+            raise ErrorTransitorio(str(e)) from e
+        except (RefreshError, ValueError) as e:
+            raise ErrorPermanente("YouTube desconectado: reconecta en Ajustes") from e
         return build("youtube", "v3", credentials=cred)
 
     def _subir(self, video: Path, meta: dict, miniatura: Path, srt: Path | None) -> str:
@@ -61,15 +67,15 @@ class SubidorYouTube:
             raise ErrorPermanente(str(e)) from e
         try:
             yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(miniatura))).execute()
-        except HttpError as e:
-            log.warning("miniatura no subida para %s: %s", vid, e)
+        except Exception as e:  # noqa: BLE001
+            log.warning("miniatura no subida para %s: %s", vid, type(e).__name__)
         try:
             if srt and srt.exists():
                 yt.captions().insert(part="snippet", body={"snippet": {"videoId": vid, "language": "es",
                                                                        "name": "Español"}},
                                      media_body=MediaFileUpload(str(srt))).execute()
-        except HttpError as e:
-            log.warning("subtítulos no subidos para %s: %s", vid, e)
+        except Exception as e:  # noqa: BLE001
+            log.warning("subtítulos no subidos para %s: %s", vid, type(e).__name__)
         return vid
 
     async def subir(self, video: Path, meta: dict, miniatura: Path, srt: Path | None) -> str:

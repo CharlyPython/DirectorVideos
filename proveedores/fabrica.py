@@ -16,6 +16,8 @@ TOKEN_YOUTUBE = Path("token_youtube.json")
 def construir(a: Ajustes) -> Proveedores:
     if a.modo == "simulado":
         return proveedores_simulados()
+    if a.tts not in ("elevenlabs", "openai"):
+        raise ValueError(f"DV_TTS inválido: {a.tts!r} (usa 'elevenlabs' u 'openai')")
     faltan = [n for n, v in [("ANTHROPIC_API_KEY", a.anthropic_key), ("FAL_KEY", a.fal_key)] if not v]
     if a.tts == "elevenlabs" and not (a.elevenlabs_key and a.elevenlabs_voz):
         faltan.append("ELEVENLABS_API_KEY/DV_ELEVENLABS_VOZ")
@@ -24,6 +26,7 @@ def construir(a: Ajustes) -> Proveedores:
     if faltan:
         raise ValueError("Faltan claves en .env: " + ", ".join(faltan))
 
+    # fal_client lee FAL_KEY del entorno (las funciones a nivel de módulo no aceptan clave explícita).
     os.environ["FAL_KEY"] = a.fal_key
     from proveedores.anthropic_llm import AnthropicLLM
     from proveedores.fal import FalImagen, FalVideo

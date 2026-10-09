@@ -7,10 +7,18 @@ from herramientas.reintentos import ErrorPermanente, ErrorTransitorio
 from proveedores.base import RespuestaLLM
 
 
+def tipo_imagen(datos: bytes) -> str:
+    if datos[:2] == bytes([0xFF, 0xD8]):
+        return "image/jpeg"
+    if datos[:4] == b"RIFF" and datos[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/png"
+
+
 class AnthropicLLM:
     def __init__(self, clave: str, modelo: str, precio_in: float, precio_out: float):
         """precio_in/out: USD por millón de tokens."""
-        self.cliente = anthropic.AsyncAnthropic(api_key=clave)
+        self.cliente = anthropic.AsyncAnthropic(api_key=clave, max_retries=0)  # reintentos vía con_reintentos
         self.modelo, self.precio_in, self.precio_out = modelo, precio_in, precio_out
 
     async def _crear(self, sistema: str, contenido, max_tokens: int) -> RespuestaLLM:
@@ -21,7 +29,7 @@ class AnthropicLLM:
         except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.InternalServerError) as e:
             raise ErrorTransitorio(str(e)) from e
         except anthropic.APIStatusError as e:
-            if e.status_code == 529:
+            if e.status_code in (408, 529):
                 raise ErrorTransitorio(str(e)) from e
             raise ErrorPermanente(str(e)) from e
         texto = "".join(b.text for b in r.content if b.type == "text")
@@ -32,7 +40,8 @@ class AnthropicLLM:
         return await self._crear(sistema, prompt, max_tokens)
 
     async def evaluar_imagen(self, imagen: Path, pregunta: str) -> RespuestaLLM:
-        datos = base64.standard_b64encode(imagen.read_bytes()).decode()
-        contenido = [{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": datos}},
+        crudo = imagen.read_bytes()
+        datos = base64.standard_b64encode(crudo).decode()
+        contenido = [{"type": "image", "source": {"type": "base64", "media_type": tipo_imagen(crudo), "data": datos}},
                      {"type": "text", "text": pregunta}]
         return await self._crear("Eres un supervisor de calidad visual. Respondes SOLO con JSON.", contenido, 300)
