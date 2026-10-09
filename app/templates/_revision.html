@@ -2,7 +2,7 @@
   <h2>⏸ Revisión final</h2>
   <video src="/media/{{ p.id }}/final.mp4" controls style="width:100%;max-width:960px;border-radius:8px"></video>
   {% if p.montaje.avisos %}<p style="color:var(--aviso)">Avisos: {{ p.montaje.avisos|join(" · ") }}</p>{% endif %}
-  <form hx-post="/api/proyectos/{{ p.id }}/aprobar-final" hx-ext="json-enc" hx-on::after-request="location.reload()">
+  <form hx-post="/api/proyectos/{{ p.id }}/aprobar-final" hx-ext="json-enc" hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-swap="none">
     <h3>Título</h3>
     {% for t in p.publicacion.titulos %}<label style="display:block"><input type="radio" name="titulo" value="{{ t }}" style="width:auto" {% if loop.first %}checked{% endif %}> {{ t }}</label>{% endfor %}
     <h3>Miniatura</h3>

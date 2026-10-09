@@ -80,6 +80,6 @@ async def ajustes(req: Request):
 async def conectar(req: Request):
     from proveedores.fabrica import TOKEN_YOUTUBE
     from proveedores.youtube import conectar_youtube
-    asyncio.create_task(asyncio.to_thread(conectar_youtube, req.app.state.ajustes.youtube_client_secret,
+    req.app.state.tarea_youtube = asyncio.create_task(asyncio.to_thread(conectar_youtube, req.app.state.ajustes.youtube_client_secret,
                                           TOKEN_YOUTUBE))
     return RedirectResponse("/ajustes", status_code=303)

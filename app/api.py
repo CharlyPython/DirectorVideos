@@ -43,10 +43,10 @@ def _d(req: Request):
 def detalle(director, pid: str) -> dict:
     a = director.almacen
     fase = a.fase(pid)
-    return {"id": pid, "plan": a.cargar_plan(pid).model_dump(), "fase": fase.value, "pausa": a.pausa(pid),
+    return {"id": pid, "plan": a.cargar_plan(pid).model_dump(mode="json"), "fase": fase.value, "pausa": a.pausa(pid),
             "coste": round(a.coste_total(pid), 2), "costes": a.costes_por_agente(pid),
             "estimacion": director.estimacion(pid),
-            "guion": a.cargar_guion(pid).model_dump() if a.tiene_guion(pid) else None,
+            "guion": a.cargar_guion(pid).model_dump(mode="json") if a.tiene_guion(pid) else None,
             "montaje": a.cargar_json(pid, "montaje.json"), "publicacion": a.cargar_json(pid, "publicacion.json"),
             "ocupado": director.ocupado(pid), "logs": a.logs(pid, 50)}
 

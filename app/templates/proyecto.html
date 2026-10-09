@@ -5,6 +5,17 @@
     {% include "_timeline.html" %}
   </div>
 </div>
+<script>
+  (function(){
+    var ini={fase:"{{ p.fase }}",ocupado:{{ 1 if p.ocupado else 0 }}};
+    document.body.addEventListener("htmx:afterSwap",function(e){
+      if(e.target.id!=="vivo")return;
+      var t=e.target.querySelector("[data-fase]");
+      if(!t)return;
+      if(t.dataset.fase!==ini.fase||(ini.ocupado&&t.dataset.ocupado==="0"))location.reload();
+    });
+  })();
+</script>
 {% if p.fase == "aprobacion_guion" %}
   <div class="tarjeta">
     <h2>⏸ Revisión del guion: {{ p.guion.titulo }}</h2>
@@ -13,7 +24,7 @@
       <b>Modelo de vídeo:</b> {{ p.plan.modelo_video }}</p>
     <p><b>Coste estimado:</b> {{ p.estimacion.total }} $ (clips {{ p.estimacion.clips }} $, imágenes {{ p.estimacion.imagenes }} $)
       · tope {{ p.plan.presupuesto_max }} $</p>
-    <button hx-post="/api/proyectos/{{ p.id }}/aprobar-guion" hx-on::after-request="location.reload()">✅ Aprobar guion</button>
+    <button hx-post="/api/proyectos/{{ p.id }}/aprobar-guion" hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-swap="none">✅ Aprobar guion</button>
   </div>
 {% endif %}
 {% if p.fase == "aprobacion_final" %}{% include "_revision.html" %}{% endif %}

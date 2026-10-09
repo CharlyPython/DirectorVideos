@@ -19,3 +19,21 @@ async def test_paginas(raiz):
                       "Aprobar guion", "c01_s001"):
             assert texto in r.text
         assert (await c.get("/ajustes")).status_code == 200
+
+
+async def test_revision_final_y_pausa(raiz):
+    app = crear_app(Ajustes(modo="simulado", raiz=raiz))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        pid = (await c.post("/api/proyectos", json={"idea": "Roma", "duracion_min": 1})).json()["id"]
+        await _esperar(c, pid, "aprobacion_guion")
+        await c.post(f"/api/proyectos/{pid}/aprobar-guion")
+        await _esperar(c, pid, "aprobacion_final")
+        for ruta in (f"/proyectos/{pid}", f"/proyectos/{pid}/parcial"):
+            r = await c.get(ruta)
+            assert r.status_code == 200
+        assert "Revisión final" in (await c.get(f"/proyectos/{pid}")).text
+        app.state.director.almacen.pausar(pid, "x")
+        r = await c.get(f"/proyectos/{pid}/parcial")
+        assert "Pausado" in r.text and "Reanudar" in r.text
+        r = await c.get(f"/proyectos/{pid}")
+        assert "Pausado" in r.text and "Reanudar" in r.text

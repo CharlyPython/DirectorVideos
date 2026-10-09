@@ -3,7 +3,7 @@
 <div class="tarjeta">
   <h3>Capítulo {{ cap.numero }}: {{ cap.titulo }}
     {% if p.fase == "aprobacion_guion" %}<button class="sec" hx-post="/api/proyectos/{{ p.id }}/capitulos/{{ cap.numero }}/regenerar"
-      hx-on::after-request="location.reload()">↻ Reescribir capítulo</button>{% endif %}</h3>
+      hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-swap="none">↻ Reescribir capítulo</button>{% endif %}</h3>
   <div class="rejilla">
   {% for e in p.guion.escenas if e.capitulo == cap.numero %}
     <div class="escena">
@@ -13,7 +13,7 @@
       {% elif e.estado.imagen == "generado" %}<img src="/media/{{ p.id }}/imagenes/{{ e.id }}.png" loading="lazy">{% endif %}
       {% if e.error %}<p style="color:var(--acento)">{{ e.error }}</p>{% endif %}
       {% if editable %}
-        <form hx-post="/api/proyectos/{{ p.id }}/escenas/{{ e.id }}" hx-ext="json-enc" hx-swap="none">
+        <form hx-post="/api/proyectos/{{ p.id }}/escenas/{{ e.id }}" hx-ext="json-enc" hx-swap="none" hx-on::after-request="if(event.detail.successful){alert('guardado')}else{alert(event.detail.xhr.responseText)}">
           <textarea name="narracion">{{ e.narracion }}</textarea>
           <input name="imagen_prompt" value="{{ e.imagen_prompt }}">
           <input name="movimiento_prompt" value="{{ e.movimiento_prompt }}">
@@ -21,7 +21,7 @@
         </form>
         {% for clave, txt in [("guion","↻ texto"),("imagen","↻ imagen"),("clip","↻ clip"),("audio","↻ voz")] %}
           <button class="sec" hx-post="/api/proyectos/{{ p.id }}/escenas/{{ e.id }}/regenerar/{{ clave }}"
-            hx-on::after-request="location.reload()">{{ txt }}</button>
+            hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-swap="none">{{ txt }}</button>
         {% endfor %}
       {% else %}<p>{{ e.narracion }}</p>{% endif %}
     </div>
