@@ -1,5 +1,5 @@
 # agentes/guionista.py
-from core.modelos import (CLAVES, ESCENAS_POR_MINUTO, PALABRAS_POR_SEGUNDO, SEGUNDOS_POR_ESCENA,
+from core.modelos import (CLAVES, PALABRAS_POR_SEGUNDO, SEGUNDOS_POR_ESCENA,
                           Capitulo, Escena, Estado, Guion)
 from agentes.base import Resultado
 from director.contexto import Contexto
@@ -17,7 +17,13 @@ def repartir(minutos: list[float], total: int) -> list[int]:
     restos = sorted(range(len(minutos)), key=lambda i: exactos[i] - base[i], reverse=True)
     for i in restos[: total - sum(base)]:
         base[i] += 1
-    return [max(1, b) for b in base]
+    if total >= len(base):
+        for i in range(len(base)):
+            if base[i] == 0:
+                j = max(range(len(base)), key=lambda k: base[k])
+                base[j] -= 1
+                base[i] = 1
+    return base
 
 
 def _no_vacia(d):
@@ -35,8 +41,13 @@ class Guionista:
         def validar_esquema(d):
             if not (d["titulo"] and d["capitulos"]):
                 raise ValueError("faltan titulo/capitulos")
+            n = len(d["capitulos"])
+            if n < 1 or n > 12 or n > plan.num_escenas:
+                raise ValueError(f"número de capítulos inválido: {n}")
             for c in d["capitulos"]:
-                float(c["minutos"]); c["titulo"]
+                if float(c["minutos"]) <= 0:
+                    raise ValueError("los minutos de cada capítulo deben ser > 0")
+                c["titulo"]
 
         esquema, c = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("esquema", {
             "duracion_min": plan.duracion_min}, (
