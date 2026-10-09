@@ -75,3 +75,34 @@ async def test_presupuesto_y_sse_404(cliente):
     pid = r.json()["id"]
     assert (await cliente.post(f"/api/proyectos/{pid}/presupuesto", json={"usd": -1})).status_code == 422
     assert (await cliente.post(f"/api/proyectos/{pid}/presupuesto", json={})).status_code == 422
+
+
+async def test_regenerar_desde_aprobacion_final_relanza(cliente):
+    r = await cliente.post("/api/proyectos", json={"idea": "Roma", "duracion_min": 1, "presupuesto_max": 50})
+    pid = r.json()["id"]
+    d = await _esperar(cliente, pid, "aprobacion_guion")
+    await cliente.post(f"/api/proyectos/{pid}/aprobar-guion")
+    d = await _esperar(cliente, pid, "aprobacion_final")
+    eid = d["guion"]["escenas"][0]["id"]
+    r = await cliente.post(f"/api/proyectos/{pid}/escenas/{eid}/regenerar/imagen")
+    assert r.status_code == 200
+    d = await _esperar(cliente, pid, "aprobacion_final")
+    assert d["pausa"] is None
+
+
+async def test_reintentar_subida_limpia_marca(cliente):
+    r = await cliente.post("/api/proyectos", json={"idea": "Roma", "duracion_min": 1, "presupuesto_max": 50})
+    pid = r.json()["id"]
+    await _esperar(cliente, pid, "aprobacion_guion")
+    await cliente.post(f"/api/proyectos/{pid}/aprobar-guion")
+    d = await _esperar(cliente, pid, "aprobacion_final")
+    assert (await cliente.post(f"/api/proyectos/{pid}/reintentar-subida")).status_code == 409   # no pausado
+    a = cliente.app.state.director.almacen
+    pub = a.cargar_json(pid, "publicacion.json")
+    pub.update(titulo_elegido=pub["titulos"][0], miniatura_elegida=pub["miniaturas"][0], subida_iniciada="2026-01-01T00:00:00")
+    a.guardar_json(pid, "publicacion.json", pub)
+    a.set_fase(pid, __import__("core.modelos", fromlist=["Fase"]).Fase.PUBLICACION)
+    a.pausar(pid, "Una subida anterior se interrumpió")
+    assert (await cliente.post(f"/api/proyectos/{pid}/reintentar-subida")).status_code == 200
+    d = await _esperar(cliente, pid, "completado")
+    assert "subida_iniciada" not in d["publicacion"] and d["publicacion"]["video_id"]

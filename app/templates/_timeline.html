@@ -17,6 +17,9 @@
         <input name="usd" type="number" step="0.5" value="{{ p.plan.presupuesto_max }}"><button class="sec">Cambiar tope</button>
       </form><br>
       <button hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-post="/api/proyectos/{{ p.id }}/reanudar" hx-swap="none">▶ Reanudar</button>
+      {% if 'subida anterior' in p.pausa %}
+      <button class="sec" hx-on::after-request="if(event.detail.successful){location.reload()}else{alert(event.detail.xhr.responseText)}" hx-post="/api/proyectos/{{ p.id }}/reintentar-subida" hx-swap="none">⟳ Reintentar subida</button>
+      {% endif %}
     </div>
   {% endif %}
   <details><summary class="tenue">Registro</summary>

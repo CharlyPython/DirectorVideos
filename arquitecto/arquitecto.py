@@ -11,6 +11,10 @@ SISTEMA = ("Eres el Arquitecto de una productora de documentales faceless para Y
            "supervisas la calidad y cuidas el presupuesto. Respondes SOLO con JSON válido.")
 
 
+EST_REVISION_GUION = 0.05
+EST_REVISION_IMAGEN = 0.01
+
+
 class Arquitecto:
     nombre = "arquitecto"
 
@@ -48,9 +52,13 @@ class Arquitecto:
             if n < 10 or n > 45:
                 candidatos.append((e.id, f"{n} palabras (objetivo ~30)"))
         texto = "\n".join(f"[{e.id}] {e.narracion}" for e in g.escenas)[:60000]
-        d, coste = await completar_json(ctx.proveedores.supervisor, SISTEMA, armar_prompt("revision_guion", {}, (
-            f"Revisa el guion. Señala SOLO escenas con repeticiones claras, contradicciones o errores factuales "
-            f"evidentes.\n{texto}\nJSON: {{\"regenerar\":[{{\"id\":str,\"motivo\":str}}]}}")), max_tokens=2000)
+        ctx.reservar(EST_REVISION_GUION)
+        try:
+            d, coste = await completar_json(ctx.proveedores.supervisor, SISTEMA, armar_prompt("revision_guion", {}, (
+                f"Revisa el guion. Señala SOLO escenas con repeticiones claras, contradicciones o errores factuales "
+                f"evidentes.\n{texto}\nJSON: {{\"regenerar\":[{{\"id\":str,\"motivo\":str}}]}}")), max_tokens=2000)
+        finally:
+            ctx.liberar(EST_REVISION_GUION)
         candidatos += [(x["id"], x["motivo"]) for x in d.get("regenerar", [])]
         ctx.cobrar(self.nombre, "revision guion", coste)
         return self._filtrar(ctx, candidatos)
@@ -61,11 +69,15 @@ class Arquitecto:
         elegidas = random.sample(hechas, min(muestra, len(hechas)))
         malas, coste = [], 0.0
         for e in elegidas:
-            r = await ctx.proveedores.supervisor.evaluar_imagen(
-                ctx.almacen.archivo(ctx.pid, "imagen", e.id),
-                f"Biblia visual: {g.biblia_visual}\nDebe mostrar: {e.imagen_prompt}\n"
-                '¿Es coherente con el estilo y sin defectos graves (manos deformes, texto basura)? '
-                'JSON: {"ok":bool,"motivo":str}')
+            ctx.reservar(EST_REVISION_IMAGEN)
+            try:
+                r = await ctx.proveedores.supervisor.evaluar_imagen(
+                    ctx.almacen.archivo(ctx.pid, "imagen", e.id),
+                    f"Biblia visual: {g.biblia_visual}\nDebe mostrar: {e.imagen_prompt}\n"
+                    '¿Es coherente con el estilo y sin defectos graves (manos deformes, texto basura)? '
+                    'JSON: {"ok":bool,"motivo":str}')
+            finally:
+                ctx.liberar(EST_REVISION_IMAGEN)
             coste += r.coste
             d = extraer_json(r.texto)
             if not d.get("ok", True):

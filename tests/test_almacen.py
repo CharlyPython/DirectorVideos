@@ -48,3 +48,11 @@ def test_persiste_entre_instancias_y_logs(raiz):
     b = Almacen(raiz)
     assert b.logs(pid)[0]["mensaje"] == "hola"
     assert b.fase(pid) == Fase.GUION
+
+
+def test_rutas_relativas_ancladas_al_repo(monkeypatch):
+    from core.config import Ajustes, RAIZ_REPO
+    monkeypatch.delenv("DV_RAIZ", raising=False)
+    monkeypatch.delenv("DV_YOUTUBE_CLIENT_SECRET", raising=False)
+    a = Ajustes.desde_entorno()
+    assert a.raiz == RAIZ_REPO / "proyectos" and a.youtube_client_secret == RAIZ_REPO / "client_secret.json"

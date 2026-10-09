@@ -126,3 +126,29 @@ async def test_ocupado_durante_regenerar(raiz):
     d.lanzar(pid)                      # ignorado: sigue ocupado
     suelta.set(); await t
     assert not d.ocupado(pid)
+
+
+async def test_pausar_interrumpidos(raiz):
+    from app.main import pausar_interrumpidos
+    d = _director(raiz)
+    p1 = await d.crear("Roma", 1, "documental", 50)       # fase GUION, sin pausa
+    p2 = await d.crear("Roma", 1, "documental", 50)
+    d.almacen.set_fase(p2, Fase.APROBACION_GUION)
+    assert pausar_interrumpidos(d.almacen) == [p1]
+    assert "reinicio" in d.almacen.pausa(p1) and d.almacen.pausa(p2) is None
+
+
+async def test_presupuesto_corto_pausa_en_guion_sin_llamadas(raiz):
+    prov = proveedores_simulados()
+    llamadas = []
+    original = prov.llm.completar
+
+    async def contar(*a, **k):
+        llamadas.append(1)
+        return await original(*a, **k)
+    prov.llm.completar = contar
+    d = _director(raiz, prov)
+    pid = await d.crear("Roma", 1, "documental", 0.01)
+    llamadas.clear()
+    assert await d.avanzar(pid) == Fase.GUION
+    assert "Presupuesto" in d.almacen.pausa(pid) and not llamadas

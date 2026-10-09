@@ -26,6 +26,20 @@ def repartir(minutos: list[float], total: int) -> list[int]:
     return base
 
 
+EST_LLM = 0.05   # reserva fija por llamada al LLM (el coste real se cobra al terminar)
+
+
+async def _llm(ctx: Contexto, concepto: str, sistema: str, prompt: str, **kw):
+    """Llamada al LLM con reserva de presupuesto y cobro inmediato."""
+    ctx.reservar(EST_LLM)
+    try:
+        d, c = await completar_json(ctx.proveedores.llm, sistema, prompt, **kw)
+    finally:
+        ctx.liberar(EST_LLM)
+    ctx.cobrar("guionista", concepto, c)
+    return d, c
+
+
 def _no_vacia(d):
     if not d["narracion"].strip():
         raise ValueError("narración vacía")
@@ -49,7 +63,7 @@ class Guionista:
                     raise ValueError("los minutos de cada capítulo deben ser > 0")
                 c["titulo"]
 
-        esquema, c = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("esquema", {
+        esquema, c = await _llm(ctx, "esquema", SISTEMA, armar_prompt("esquema", {
             "duracion_min": plan.duracion_min}, (
             f"Idea: {plan.idea}\nTono: {plan.tono}\nAudiencia: {plan.audiencia}\nÁngulo: {plan.angulo}\n"
             f"Duración total: {plan.duracion_min} min. Diseña entre 1 y 12 capítulos cuya suma de minutos sea "
@@ -76,12 +90,11 @@ class Guionista:
         guion = Guion(titulo=esquema["titulo"], gancho=esquema["gancho"], biblia_visual=esquema["biblia_visual"],
                       capitulos=capitulos, escenas=escenas)
         ctx.almacen.guardar_guion(ctx.pid, guion)
-        ctx.cobrar(self.nombre, "guion", coste)
         return Resultado(ok=True, coste=coste)
 
     async def _capitulo(self, ctx, esquema, cap: Capitulo, n: int, previo: str, offset: int):
         palabras = int(n * SEGUNDOS_POR_ESCENA * PALABRAS_POR_SEGUNDO)
-        narr, c1 = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("narracion", {
+        narr, c1 = await _llm(ctx, f"narracion cap {cap.numero}", SISTEMA, armar_prompt("narracion", {
             "palabras": palabras}, (
             f"Vídeo: {esquema['titulo']}\nCapítulo {cap.numero}: {cap.titulo}\n"
             f"Final de lo narrado antes (no lo repitas): {previo}\n"
@@ -94,7 +107,7 @@ class Guionista:
             for e in d["escenas"]:
                 e["narracion"], e["imagen_prompt"], e["movimiento_prompt"]
 
-        desg, c2 = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("escenas", {"n": n}, (
+        desg, c2 = await _llm(ctx, f"escenas cap {cap.numero}", SISTEMA, armar_prompt("escenas", {"n": n}, (
             f"Biblia visual: {esquema['biblia_visual']}\nNarración:\n{narr['narracion']}\n\n"
             f"Divide la narración en EXACTAMENTE {n} escenas consecutivas de ~{int(SEGUNDOS_POR_ESCENA)} s "
             f"(~{int(SEGUNDOS_POR_ESCENA * PALABRAS_POR_SEGUNDO)} palabras). Para cada una: narracion (texto literal), "
@@ -110,7 +123,7 @@ class Guionista:
         e = guion.escena(escena_id)
         i = guion.escenas.index(e)
         vecinas = " ".join(x.narracion for x in guion.escenas[max(0, i - 1): i + 2] if x.id != e.id)
-        d, c = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("escena", {}, (
+        d, c = await _llm(ctx, f"regen {escena_id}", SISTEMA, armar_prompt("escena", {}, (
             f"Biblia visual: {guion.biblia_visual}\nContexto: {vecinas}\nEscena actual: {e.narracion}\n"
             f"Motivo de reescritura: {motivo or 'mejorar'}\nReescribe la escena (~30 palabras). "
             'JSON: {"narracion":str,"imagen_prompt":str,"movimiento_prompt":str}')))
@@ -118,7 +131,6 @@ class Guionista:
         e.estado = {k: Estado.PENDIENTE for k in CLAVES}
         e.duracion_audio = None
         ctx.almacen.guardar_guion(ctx.pid, guion)
-        ctx.cobrar(self.nombre, f"regen {escena_id}", c)
 
     async def regenerar_capitulo(self, ctx: Contexto, numero: int) -> None:
         guion = ctx.almacen.cargar_guion(ctx.pid)
@@ -132,4 +144,3 @@ class Guionista:
             nueva.id = vieja.id
         guion.escenas[inicio: inicio + len(viejas)] = nuevas
         ctx.almacen.guardar_guion(ctx.pid, guion)
-        ctx.cobrar(self.nombre, f"regen cap {numero}", c)

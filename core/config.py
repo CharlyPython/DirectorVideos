@@ -4,6 +4,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
+RAIZ_REPO = Path(__file__).resolve().parent.parent
+
+
+def _anclar(ruta: Path, base: Path = RAIZ_REPO) -> Path:
+    return ruta if ruta.is_absolute() else (base / ruta)
+
+
 @dataclass
 class Ajustes:
     modo: str = "simulado"
@@ -25,11 +32,12 @@ class Ajustes:
 
     @classmethod
     def desde_entorno(cls) -> "Ajustes":
+        load_dotenv(RAIZ_REPO / ".env")
         load_dotenv()
         g = os.environ.get
         return cls(
             modo=g("DV_MODO", "simulado"),
-            raiz=Path(g("DV_RAIZ", "proyectos")),
+            raiz=_anclar(Path(g("DV_RAIZ", "proyectos"))),
             concurrencia=max(1, min(10, int(g("DV_CONCURRENCIA", "6")))),
             anthropic_key=g("ANTHROPIC_API_KEY", ""),
             modelo_guion=g("DV_MODELO_GUION", cls.modelo_guion),
@@ -43,5 +51,5 @@ class Ajustes:
             elevenlabs_voz=g("DV_ELEVENLABS_VOZ", ""),
             openai_key=g("OPENAI_API_KEY", ""),
             openai_voz=g("DV_OPENAI_VOZ", "onyx"),
-            youtube_client_secret=Path(g("DV_YOUTUBE_CLIENT_SECRET", "client_secret.json")),
+            youtube_client_secret=_anclar(Path(g("DV_YOUTUBE_CLIENT_SECRET", "client_secret.json"))),
         )

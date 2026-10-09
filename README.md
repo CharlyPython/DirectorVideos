@@ -57,7 +57,7 @@ Modelos de Claude por defecto: `DV_MODELO_GUION=claude-sonnet-5-5` (guion) y `DV
 .venv\Scripts\python run.py
 ```
 
-Abre http://127.0.0.1:8000.
+Abre http://127.0.0.1:8000. Puedes arrancar la app desde cualquier carpeta: las rutas relativas (`proyectos/`, `client_secret.json`, `token_youtube.json`) se resuelven respecto a la carpeta del proyecto.
 
 ## Flujo
 

@@ -36,6 +36,15 @@ class EdicionEscena(BaseModel):
     movimiento_prompt: str | None = None
 
 
+PRODUCCION = {Fase.GUION, Fase.IMAGENES, Fase.CLIPS, Fase.AUDIO, Fase.MONTAJE, Fase.PUBLICACION}
+
+
+def _relanzar_si_toca(d, pid: str) -> None:
+    """Tras regenerar, si el Director quedó en una fase de producción y sin pausa, sigue solo."""
+    if d.almacen.fase(pid) in PRODUCCION and not d.almacen.pausa(pid):
+        d.lanzar(pid)
+
+
 def _d(req: Request):
     return req.app.state.director
 
@@ -88,6 +97,18 @@ async def reanudar(req: Request, pid: str):
     return {"ok": True}
 
 
+@router.post("/api/proyectos/{pid}/reintentar-subida")
+async def reintentar_subida(req: Request, pid: str):
+    d = _d(req)
+    if d.almacen.fase(pid) != Fase.PUBLICACION or not d.almacen.pausa(pid):
+        raise ValueError("solo se puede reintentar la subida en publicación pausada")
+    pub = d.almacen.cargar_json(pid, "publicacion.json") or {}
+    pub.pop("subida_iniciada", None)
+    d.almacen.guardar_json(pid, "publicacion.json", pub)
+    d.reanudar(pid)
+    return {"ok": True}
+
+
 @router.post("/api/proyectos/{pid}/presupuesto")
 async def presupuesto(req: Request, pid: str, datos: Presupuesto):
     d = _d(req)
@@ -133,12 +154,14 @@ async def regenerar(req: Request, pid: str, eid: str, clave: str):
     if clave not in ("guion", "imagen", "clip", "audio"):
         raise HTTPException(400, "clave inválida")
     await _d(req).regenerar(pid, eid, clave)
+    _relanzar_si_toca(_d(req), pid)
     return _d(req).almacen.cargar_guion(pid).escena(eid).model_dump()
 
 
 @router.post("/api/proyectos/{pid}/capitulos/{numero}/regenerar")
 async def regenerar_capitulo(req: Request, pid: str, numero: int):
     await _d(req).regenerar_capitulo(pid, numero)
+    _relanzar_si_toca(_d(req), pid)
     return {"ok": True}
 
 

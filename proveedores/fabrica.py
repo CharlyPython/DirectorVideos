@@ -10,7 +10,7 @@ from proveedores.simulados import proveedores_simulados
 PRECIOS_LLM = {"claude-sonnet-5-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0)}
 # Orientativo: verificar en la primera ejecución real (igual que endpoints y precios de fal/ElevenLabs/OpenAI).
 PRECIO_TTS_1K = {"elevenlabs": 0.30, "openai": 0.015}
-TOKEN_YOUTUBE = Path("token_youtube.json")
+TOKEN_YOUTUBE = Path(__file__).resolve().parent.parent / "token_youtube.json"
 
 
 def construir(a: Ajustes) -> Proveedores:

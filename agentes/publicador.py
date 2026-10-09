@@ -1,9 +1,11 @@
 # agentes/publicador.py
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from agentes.base import Resultado
+from core.costes import PRECIOS
 from director.contexto import Contexto
 from herramientas.reintentos import con_reintentos
 from proveedores.base import armar_prompt, completar_json
@@ -34,12 +36,25 @@ def _rotular(ruta: Path, texto: str) -> None:
     img.save(ruta)
 
 
+EST_METADATOS = 0.05
+
+
 class Publicador:
     nombre = "publicador"
 
     async def preparar(self, ctx: Contexto) -> Resultado:
         guion, plan = ctx.almacen.cargar_guion(ctx.pid), ctx.plan
         montaje = ctx.almacen.cargar_json(ctx.pid, "montaje.json")
+        base = ctx.almacen.ruta(ctx.pid)
+        previo = ctx.almacen.cargar_json(ctx.pid, "publicacion.json") or {}
+        if (len(previo.get("titulos") or []) == 3 and len(previo.get("miniaturas") or []) == 3
+                and all((base / m).exists() for m in previo["miniaturas"])):
+            # Ya preparado (re-montaje): solo se refrescan las marcas de capítulos; sin gasto ni pérdida de elecciones.
+            desc = previo.get("descripcion", "").split("\n\nCapítulos:\n")[0]
+            previo["descripcion"] = f"{desc}\n\nCapítulos:\n{marcas_capitulos(montaje['capitulos'])}"
+            ctx.almacen.guardar_json(ctx.pid, "publicacion.json", previo)
+            ctx.emitir(self.nombre, "metadatos y miniaturas ya preparados; capítulos actualizados")
+            return Resultado(ok=True)
 
         def validar(d):
             if len(d["titulos"]) != 3 or len(d["miniatura_prompts"]) != 3:
@@ -47,30 +62,39 @@ class Publicador:
             d["descripcion"], d["etiquetas"], d["texto_miniatura"]
 
         resumen = " ".join(e.narracion for e in guion.escenas)[:6000]
-        meta, coste = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("metadatos", {}, (
+        ctx.reservar(EST_METADATOS)
+        try:
+          meta, coste = await completar_json(ctx.proveedores.llm, SISTEMA, armar_prompt("metadatos", {}, (
             f"Título de trabajo: {guion.titulo}\nAudiencia: {plan.audiencia}\nÁngulo: {plan.angulo}\n"
             f"Estilo visual: {guion.biblia_visual}\nGuion (extracto): {resumen}\n"
             "Genera 3 títulos (≤70 caracteres), descripción (2-3 párrafos, sin marcas de tiempo), 10-15 etiquetas, "
             "texto_miniatura (≤4 palabras) y 3 miniatura_prompts (inglés, 16:9, alto contraste, sin texto). JSON: "
             '{"titulos":[str],"descripcion":str,"etiquetas":[str],"texto_miniatura":str,"miniatura_prompts":[str]}')),
             validar=validar)
-        base = ctx.almacen.ruta(ctx.pid)
+        finally:
+            ctx.liberar(EST_METADATOS)
+        ctx.cobrar(self.nombre, "metadatos", coste)
+        coste_total = coste
         miniaturas = []
         for i, p in enumerate(meta["miniatura_prompts"], 1):
             ruta = base / f"miniatura_{i}.png"
-            coste += await con_reintentos(lambda: ctx.proveedores.imagen.generar(
-                f"{p}. Visual style: {guion.biblia_visual}", ruta))
+            ctx.reservar(PRECIOS["imagen"])
+            try:
+                c = await con_reintentos(lambda: ctx.proveedores.imagen.generar(
+                    f"{p}. Visual style: {guion.biblia_visual}", ruta))
+            finally:
+                ctx.liberar(PRECIOS["imagen"])
+            ctx.cobrar(self.nombre, f"miniatura {i}", c)
+            coste_total += c
             _rotular(ruta, meta["texto_miniatura"])
             miniaturas.append(ruta.name)
         descripcion = f"{meta['descripcion']}\n\nCapítulos:\n{marcas_capitulos(montaje['capitulos'])}"
-        previo = ctx.almacen.cargar_json(ctx.pid, "publicacion.json") or {}
         ctx.almacen.guardar_json(ctx.pid, "publicacion.json", {
             "titulos": meta["titulos"], "descripcion": descripcion, "etiquetas": meta["etiquetas"],
             "miniaturas": miniaturas, "titulo_elegido": None, "miniatura_elegida": None,
             "privacidad": "private", "publicar_en": None, "video_id": previo.get("video_id")})
-        ctx.cobrar(self.nombre, "metadatos+miniaturas", coste)
         ctx.emitir(self.nombre, "metadatos y miniaturas listos")
-        return Resultado(ok=True, coste=coste)
+        return Resultado(ok=True, coste=coste_total)
 
     async def subir(self, ctx: Contexto) -> Resultado:
         d = ctx.almacen.cargar_json(ctx.pid, "publicacion.json")
@@ -79,6 +103,9 @@ class Publicador:
         if d.get("video_id"):
             ctx.emitir(self.nombre, f"ya estaba publicado: {d['video_id']}")
             return Resultado(ok=True)
+        if d.get("subida_iniciada"):
+            return Resultado(ok=False, errores=["Una subida anterior se interrumpió: comprueba YouTube Studio. "
+                                                "Si no se publicó, pulsa 'Reintentar subida'."])
         base = ctx.almacen.ruta(ctx.pid)
         errores = []
         if d["titulo_elegido"] not in d["titulos"]:
@@ -93,9 +120,12 @@ class Publicador:
             return Resultado(ok=False, errores=errores)
         meta = {"titulo": d["titulo_elegido"], "descripcion": d["descripcion"], "etiquetas": d["etiquetas"],
                 "privacidad": d["privacidad"], "publicar_en": d["publicar_en"]}
+        d["subida_iniciada"] = datetime.now().isoformat(timespec="seconds")
+        ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
         video_id = await con_reintentos(lambda: ctx.proveedores.subidor.subir(
             base / "final.mp4", meta, base / d["miniatura_elegida"], base / "subtitulos.srt"))
         d["video_id"] = video_id
+        d.pop("subida_iniciada", None)
         ctx.almacen.guardar_json(ctx.pid, "publicacion.json", d)
         ctx.emitir(self.nombre, f"subido a YouTube: {video_id}")
         return Resultado(ok=True)
