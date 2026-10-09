@@ -28,9 +28,9 @@ async def descargar(url: str, destino: Path) -> None:
         async with httpx.AsyncClient(timeout=300) as c:
             r = await c.get(url)
             r.raise_for_status()
+        destino.write_bytes(r.content)
     except Exception as e:  # noqa: BLE001
         raise _clasificar(e) from e
-    destino.write_bytes(r.content)
 
 
 async def _subir(imagen: Path) -> str:

@@ -69,9 +69,9 @@ def test_youtube_fallo_miniatura_no_pierde_vid(tmp_path, monkeypatch):
 
 
 async def test_fal_descargar_mapea_status(tmp_path, monkeypatch):
+    real = httpx.AsyncClient
     for status, exc in ((503, ErrorTransitorio), (404, ErrorPermanente)):
         def handler(req, status=status): return httpx.Response(status, content=b"x")
-        real = httpx.AsyncClient
         monkeypatch.setattr(falmod.httpx, "AsyncClient",
                             lambda **k: real(transport=httpx.MockTransport(handler)))
         with pytest.raises(exc):

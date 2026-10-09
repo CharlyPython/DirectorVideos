@@ -18,7 +18,7 @@ def tipo_imagen(datos: bytes) -> str:
 class AnthropicLLM:
     def __init__(self, clave: str, modelo: str, precio_in: float, precio_out: float):
         """precio_in/out: USD por millón de tokens."""
-        self.cliente = anthropic.AsyncAnthropic(api_key=clave, max_retries=0)  # reintentos vía con_reintentos
+        self.cliente = anthropic.AsyncAnthropic(api_key=clave, max_retries=3)  # reintentos del SDK: las llamadas LLM no pasan por con_reintentos
         self.modelo, self.precio_in, self.precio_out = modelo, precio_in, precio_out
 
     async def _crear(self, sistema: str, contenido, max_tokens: int) -> RespuestaLLM:
